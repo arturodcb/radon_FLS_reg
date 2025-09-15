@@ -1,7 +1,6 @@
 import numpy as np
 import cv2
 from pathlib import Path
-import math
 
 import matplotlib.pyplot as plt
 
@@ -327,7 +326,7 @@ def mappingPolar(rect, azimuth_fov=130):
 
 from scipy.spatial.transform import Rotation as R
 from pymlg.numpy import SE3
-from uvnav_py.states import SE3State
+from states import SE3State
 
 def load_gt(gt_path : Path):
     """
@@ -543,3 +542,193 @@ def is_mostly_black(image, max_threshold=10, mean_threshold=1, min_non_black_per
         return True
     
     return False
+
+
+import numpy as np
+from scipy.interpolate import interp1d
+from typing import Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import states
+
+def state_interp(
+    query_stamps: float | list[float],
+    state_list: list["states.State"] | list["states.StateWithCovariance"],
+    method: str = "linear",
+    covariance: bool = False,
+    verbose: bool = False,
+    degree: int = 10,
+) -> Union[
+    "states.State",
+    list["states.State"],
+    "states.StateWithCovariance",
+    list["states.StateWithCovariance"],
+    tuple,
+]:
+    """
+    Performs "linear" (geodesic) interpolation between ``State`` objects. Multiple
+    interpolations can be performed at once in a vectorized fashion. If the
+    query point is out of bounds, the end points are returned.
+
+    ..code-block:: python
+
+        x_data = [SE3State.random(stamp=i) for i in range(10)]
+        x_query = [0.2, 0.5, 10]
+        x_interp = state_interp(x_query, x_data)
+
+    Parameters
+    ----------
+    query_stamps : float or object with ``.stamp`` attribute (or Lists thereof)
+        Query stamps. Can either be a float, or an object containing a ``stamp``
+        attribute. If a list is provided, it will be treated as multiple query
+        points and the return value will be a list of ``states.State`` objects.
+    state_list : list[states.State] or list[states.StateWithCovariance]
+        List of ``states.State`` or ``states.StateWithCovariance`` objects to interpolate
+
+    Returns
+    -------
+    ``states.State`` or list[``states.State``]
+        The interpolated state(s).
+
+    Raises
+    ------
+    TypeError
+        If query point is not a float or object with a ``stamp`` attribute.
+    """
+
+    # Handle input
+    if isinstance(query_stamps, list):
+        single_query = False
+    elif isinstance(query_stamps, np.ndarray):
+        single_query = False
+    elif isinstance(query_stamps, float):
+        query_stamps = [query_stamps]
+        single_query = True
+    else:
+        pass
+
+    query_stamps = query_stamps.copy()
+    for i, stamp in enumerate(query_stamps):
+        if not isinstance(stamp, (float, int)):
+            if hasattr(stamp, "stamp"):
+                stamp = stamp.stamp
+                query_stamps[i] = stamp
+            else:
+                raise TypeError(
+                    "Stamps must be of type float or have a stamp attribute"
+                )
+
+    # Get the indices of the states just before and just after.
+    query_stamps = np.array(query_stamps)
+    state_list = np.array(state_list)
+    stamp_list = [state.stamp for state in state_list]
+    stamp_list.sort()
+    stamp_list = np.array(stamp_list)
+
+    if method == "linear":
+        idx_middle = np.interp(
+            query_stamps, stamp_list, np.array(range(len(stamp_list)))
+        )
+        idx_lower = np.floor(idx_middle).astype(int)
+        idx_upper = idx_lower + 1
+
+        before_start = query_stamps < stamp_list[0]
+        after_end = idx_upper >= len(state_list)
+        inside = np.logical_not(np.logical_or(before_start, after_end))
+
+        # Return endpoint if out of bounds
+        idx_upper[idx_upper == len(state_list)] = len(state_list) - 1
+
+        # ############ Do the interpolation #################
+        stamp_lower = stamp_list[idx_lower]
+        stamp_upper = stamp_list[idx_upper]
+
+        # "Fraction" of the way between the two states
+        alpha = np.zeros(len(query_stamps))
+        alpha[inside] = np.array(
+            (query_stamps[inside] - stamp_lower[inside])
+            / (stamp_upper[inside] - stamp_lower[inside])
+        ).ravel()
+
+        # The two neighboring states around the query point
+        state_lower: list["states.State"] | list["states.StateWithCovariance"] = (
+            np.array(state_list[idx_lower]).ravel()
+        )
+        state_upper: list["states.State"] | list["states.StateWithCovariance"] = (
+            np.array(state_list[idx_upper]).ravel()
+        )
+
+        # Interpolate between the two states
+
+        if not covariance:
+            dx = np.array(
+                [
+                    s.minus(state_lower[i]).get_value().ravel()
+                    for i, s in enumerate(state_upper)
+                ]
+            )
+
+            out = []
+            for i, state in enumerate(state_lower):
+                if np.isnan(alpha[i]) or np.isinf(alpha[i]) or alpha[i] < 0.0:
+                    raise RuntimeError("wtf")
+
+                state_interp = state.plus(dx[i] * alpha[i])
+
+                state_interp.stamp = query_stamps[i]
+                out.append(state_interp)
+        else:
+            dx = np.array(
+                [
+                    s.state.minus(state_lower[i].state).get_value().ravel()
+                    for i, s in enumerate(state_upper)
+                ]
+            )
+
+            # P_k = [state.covariance for state in state_upper]
+            out = []
+            for i, state in enumerate(state_lower):
+                if np.isnan(alpha[i]) or np.isinf(alpha[i]) or alpha[i] < 0.0:
+                    raise RuntimeError("wtf")
+
+                state_: "states.MatrixLieGroupState" = state.state
+                state_interp = state_.plus(dx[i] * alpha[i])
+
+                state_interp.stamp = query_stamps[i]
+
+                # Covariance
+                J_1 = state_.group.right_jacobian_inv(dx[i])  # NEED to make this better
+                J_2 = state_.group.right_jacobian(dx[i] * alpha[i])
+
+                A = alpha[i] * J_2 @ J_1
+                P_t_1 = (
+                    (np.eye(state_.dof) - A)
+                    @ state.covariance
+                    @ (np.eye(state_.dof) - A).T
+                )
+                P_t_2 = A @ state_upper[i].covariance @ A.T
+
+                P_t = P_t_1 + P_t_2
+
+                out.append([state_interp, P_t])
+
+
+    elif method == "nearest":
+        indexes = np.array(range(len(stamp_list)))
+        nearest_state = interp1d(
+            stamp_list,
+            indexes,
+            "nearest",
+            bounds_error=False,
+            fill_value="extrapolate",
+        )
+        state_idx = nearest_state(query_stamps).astype(int)
+        out = state_list[state_idx].tolist()
+
+    if single_query:
+        out = out[0]
+
+    if verbose:
+        return out, (dx, alpha, stamp_lower, stamp_upper)
+    else:
+        return out

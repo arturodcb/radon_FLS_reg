@@ -1,11 +1,5 @@
 import numpy as np
 import cv2
-import os
-import matplotlib.pyplot as plt
-import pywt
-from skimage.restoration import denoise_wavelet, estimate_sigma
-from skimage.filters import unsharp_mask
-from skimage.registration import phase_cross_correlation
 from pathlib import Path
 import time
 
@@ -15,19 +9,15 @@ from image_reg import (
     FourierRegistration,
     DirectRegistration,
     SonarImageRegistration,
-    RadonRegistration,
-    RANSACRegistration,
-    TEASERRegistration,
-    FourierRotRegistration
+    RadonRegistration
 )
 
 import ciso8601
 import copy
 
-from uvnav_py.lib import FLS
+import FLS
 
-from utils import to_cartesian, load_gt, readAgisoftTrajectory, is_mostly_black, create_fan_mask, plot_polar
-from uvnav_py.utils import state_interp
+from utils import is_mostly_black, state_interp
 
 
 dataset = "/media/arturo/Voyis/Quarry0211/truck_lm/"
@@ -68,25 +58,17 @@ dir_reg = DirectRegistration(r_max=10, r_min=0, azimuth_fov=130, elevation_fov=2
 radon_reg = RadonRegistration(
     r_max=10, r_min=0, azimuth_fov=130, elevation_fov=20
 )
-ransac_reg = RANSACRegistration(
-    r_max=10, r_min=0, azimuth_fov=130, elevation_fov=20
-)
-teaser_reg = TEASERRegistration(
-    r_max=10, r_min=0, azimuth_fov=130, elevation_fov=20, real_data=True
-)
-fourier_rot_reg = FourierRotRegistration(r_max=10, r_min=0, azimuth_fov=130, elevation_fov=20)
+
 
 rel_posesICP = []
 rel_posesFou = []
 rel_posesDir = []
 rel_posesRad = []
-rel_posesTEAS = []
 
 timesICP = []
 timesFou = []
 timesDir = []
 timesRad = []
-timesTEAS = []
 # nanPose = SE2.identity()
 nanPose = np.nan * np.eye(3)
 nanPosese3 = np.nan * np.eye(4)
@@ -165,67 +147,67 @@ for trial, dataset_param in dataset_params.items():
                     )
 
                     ### ICP
-                    # try:
+                    try:
 
-                    #     pose = icp_reg.register_images(
-                    #         prev_image, image, prev_image_polar, polar_img, None
-                    #     )
+                        pose = icp_reg.register_images(
+                            prev_image, image, prev_image_polar, polar_img, None
+                        )
 
-                    #     ang, shift = convert_se3_estimate_to_planar_estimates(pose)
+                        ang, shift = convert_se3_estimate_to_planar_estimates(pose)
 
-                    #     # SonarImageRegistration.visualize_registration(prev_image, image, ang, gamma*shift, "ICP Registration Result")
+                        # SonarImageRegistration.visualize_registration(prev_image, image, ang, gamma*shift, "ICP Registration Result")
 
-                    #     # icp_se2.append(np.array([ang, shift[0], shift[1]], dtype=np.float32))
-                    #     rel_posesICP.append(pose)
-                    #     timesICP.append(ts_converted)
-                    # except Exception as e:
-                    #     print(f"ICP Registration failed for {polar_file.name}: {e}")
-                    #     rel_posesICP.append(nanPose)
+                        # icp_se2.append(np.array([ang, shift[0], shift[1]], dtype=np.float32))
+                        rel_posesICP.append(pose)
+                        timesICP.append(ts_converted)
+                    except Exception as e:
+                        print(f"ICP Registration failed for {polar_file.name}: {e}")
+                        rel_posesICP.append(nanPose)
 
-                    ## FOURIER REGISTRATION
-                    # try:
-                    #     start_time = time.time()
-                    #     pose = fourier_reg.register_images(
-                    #         prev_image, image, prev_image_polar, polar_img, None
-                    #     )
-                    #     print(f"Fourier Registration took {time.time() - start_time:.2f} seconds")
-                    #     ang = np.rad2deg(SO2.Log(pose[:2, :2]))
-                    #     shift = np.array([pose[0, 2], pose[1, 2]], dtype=np.float32)
-                    #     # ang, shift = convert_se3_estimate_to_planar_estimates(pose)
-                    #     # SonarImageRegistration.visualize_registration(prev_image, image, ang, shift, "Fourier Registration Result")
-                    #     # fou_se2.append(np.array([ang, shift[0], shift[1]], dtype=np.float32))
+                    # FOURIER REGISTRATION
+                    try:
+                        start_time = time.time()
+                        pose = fourier_reg.register_images(
+                            prev_image, image, prev_image_polar, polar_img, None
+                        )
+                        print(f"Fourier Registration took {time.time() - start_time:.2f} seconds")
+                        ang = np.rad2deg(SO2.Log(pose[:2, :2]))
+                        shift = np.array([pose[0, 2], pose[1, 2]], dtype=np.float32)
+                        # ang, shift = convert_se3_estimate_to_planar_estimates(pose)
+                        # SonarImageRegistration.visualize_registration(prev_image, image, ang, shift, "Fourier Registration Result")
+                        # fou_se2.append(np.array([ang, shift[0], shift[1]], dtype=np.float32))
 
-                    #     rel_posesFou.append(pose)
-                    #     timesFou.append(ts_converted)
+                        rel_posesFou.append(pose)
+                        timesFou.append(ts_converted)
 
-                    # except Exception as e:
-                    #     print(f"Fourier Registration failed for {polar_file.name}: {e}")
-                    #     rel_posesFou.append(nanPose)
+                    except Exception as e:
+                        print(f"Fourier Registration failed for {polar_file.name}: {e}")
+                        rel_posesFou.append(nanPose)
 
                     # DIRECT REGISTRATION
-                    # try:
+                    try:
 
-                    #     pose = dir_reg.register_images(
-                    #         prev_image, image, None, None, None
-                    #     )
+                        pose = dir_reg.register_images(
+                            prev_image, image, None, None, None
+                        )
 
-                    #     ang = np.rad2deg(SO2.Log(pose[:2, :2]))
-                    #     shift = np.array([pose[0, 2], pose[1, 2]], dtype=np.float32)
-                    #     # print(ang, shift)
-                    #     # print(f"[DIRECT] Pose vector: {SE3.Log(pose).ravel()}")
-                    #     # dir_se2.append(np.array([ang, shift[0], shift[1]], dtype=np.float32))
-                    #     # ang, shift = convert_se3_estimate_to_planar_estimates(pose)
-                    #     # dir_se3.append(
+                        ang = np.rad2deg(SO2.Log(pose[:2, :2]))
+                        shift = np.array([pose[0, 2], pose[1, 2]], dtype=np.float32)
+                        # print(ang, shift)
+                        # print(f"[DIRECT] Pose vector: {SE3.Log(pose).ravel()}")
+                        # dir_se2.append(np.array([ang, shift[0], shift[1]], dtype=np.float32))
+                        # ang, shift = convert_se3_estimate_to_planar_estimates(pose)
+                        # dir_se3.append(
 
-                    #     # )
-                    #     # dir_se3.append(np.block([[SO3.Log(pose[:3, :3]).ravel()], [pose[:3, 3]]]).ravel())
-                    #     # SonarImageRegistration.visualize_registration(prev_image.copy(), image.copy(), ang, gamma * shift, "Direct Registration Result")
-                    #     rel_posesDir.append(pose)
-                    #     timesDir.append(ts_converted)
-                    # except Exception as e:
-                    #     print(f"Direct Registration failed for {polar_file.name}: {e}")
-                    #     rel_posesDir.append(nanPose)
-                # Radon REGISTRATION
+                        # )
+                        # dir_se3.append(np.block([[SO3.Log(pose[:3, :3]).ravel()], [pose[:3, 3]]]).ravel())
+                        # SonarImageRegistration.visualize_registration(prev_image.copy(), image.copy(), ang, gamma * shift, "Direct Registration Result")
+                        rel_posesDir.append(pose)
+                        timesDir.append(ts_converted)
+                    except Exception as e:
+                        print(f"Direct Registration failed for {polar_file.name}: {e}")
+                        rel_posesDir.append(nanPose)
+                    ### Radon REGISTRATION
                     try:
 
                         t_start = time.time()
@@ -247,48 +229,7 @@ for trial, dataset_param in dataset_params.items():
                         print(f"Radon Registration failed for {polar_file.name}: {e}")
                         rel_posesRad.append(nanPose)
 
-                    ### TEASER REGISTRATION
-                    # try:
-                    #     t_start = time.time()
-                    #     pose = teaser_reg.register_images(
-                    #         prev_image, image, prev_image_polar, polar_img, None
-                    #     )
-                    #     ang, shift = convert_se3_estimate_to_planar_estimates(pose)
-
-                    #     # SonarImageRegistration.visualize_registration(prev_image, image, ang, gamma*shift, "TEASER Registration Result")
-
-                    #     # rel_posesRad.append(pose)
-                    #     # timesRad.append(ts_converted)
-                    #     rel_posesTEAS.append(pose)
-                    #     timesTEAS.append(ts_converted)
-                    # # except Exception as e:
-                    # #     print(f"ICP Registration failed for {polar_file.name}: {e}")
-                    # #     rel_posesDir.append(nanPose)
-                    # except Exception as e:
-                    #     print(f"TEASER Registration failed for {polar_file.name}: {e}")
-                    #     rel_posesTEAS.append(nanPosese3)
-
-                    # Fourier Rotation REGISTRATION
-                    # try:
-
-                    # t_start = time.time()
-                    # pose = fourier_rot_reg.register_images(
-                    #     prev_image, image, prev_image_polar, polar_img, None
-                    # )
-                    # print(f"Fourier Rotation Registration took {time.time() - t_start:.2f} seconds")
-
-                    # ang = np.rad2deg(SO2.Log(pose[:2, :2]))
-                    # shift = np.array([pose[0, 2], pose[1, 2]], dtype=np.float32)
-                    # # ang, shift = convert_se3_estimate_to_planar_estimates(pose)
-                    # # SonarImageRegistration.visualize_registration(prev_image, image, ang, shift, "Radon Registration Result")
-                    # # fou_se2.append(np.array([ang, shift[0], shift[1]], dtype=np.float32))
-                    # print(f"[RADON] Translation meters: {shift / gamma}")
-                    # rel_posesRad.append(pose)
-                    # timesRad.append(ts_converted)
-
-                    # except Exception as e:
-                    #     print(f"Fourier Rotation Registration failed for {polar_file.name}: {e}")
-                        # rel_posesRad.append(nanPose)
+                    
 
                     prev_image = image
                     prev_image_polar = polar_img
@@ -306,31 +247,27 @@ for trial, dataset_param in dataset_params.items():
                 # cv2.imshow('bilateral', im_bilateral)
                 # cv2.waitKey(0)
 
-        # np.savez(
-        #     output_path.joinpath(trial, "icp_results.npz"),
-        #     icp_se3=np.vstack(rel_posesICP),
-        #     times=timesICP,
-        # )
-        # np.savez(
-        #     output_path.joinpath(trial, "fourier_results.npz"),
-        #     fou_se3=np.vstack(rel_posesFou),
-        #     times=timesFou,
-        # )
-        # np.savez(
-        #     output_path.joinpath(trial, "direct_results.npz"),
-        #     dir_se3=np.vstack(rel_posesDir),
-        #     times=timesDir,
-        # )
+        np.savez(
+            output_path.joinpath(trial, "icp_results.npz"),
+            icp_se3=np.vstack(rel_posesICP),
+            times=timesICP,
+        )
+        np.savez(
+            output_path.joinpath(trial, "fourier_results.npz"),
+            fou_se3=np.vstack(rel_posesFou),
+            times=timesFou,
+        )
+        np.savez(
+            output_path.joinpath(trial, "direct_results.npz"),
+            dir_se3=np.vstack(rel_posesDir),
+            times=timesDir,
+        )
         np.savez(
             output_path.joinpath(trial, "radon_results.npz"),
             rad_se3=np.vstack(rel_posesRad),
             times=timesRad,
         )
-        # np.savez(
-        #     output_path.joinpath(trial, "teaser_results.npz"),
-        #     teas_se3=np.vstack(rel_posesTEAS),
-        #     times=timesTEAS,
-        # )
+
 
 # ax = fig.add_subplot(1, 5, 5)
 # ax.imshow(im_ref, interpolation="nearest", cmap=plt.cm.gray)

@@ -1,11 +1,9 @@
 import numpy as np
 # from pymlg import SE3, SO3, SO2
-from utils import readAgisoftTrajectory, correct_timestamps
+from utils import readAgisoftTrajectory, correct_timestamps, state_interp
 from pathlib import Path
-from uvnav_py.plotter import plot_poses
-from uvnav_py.states import SE3State
-from uvnav_py.bspline import SE3Bspline
-from uvnav_py.utils import state_interp
+
+from states import SE3State
 
 import matplotlib.pyplot as plt
 plt.rcParams.update({'font.size': 14})
@@ -118,11 +116,6 @@ T_cs[:3, 3] = r_c
 
 T_cs_se3 = SE3State(T_cs)
 
-# eye_se3 = SE3State(np.eye(4, dtype=np.float32))
-
-
-# plot_poses([T_cs_se3, eye_se3], step = 1, arrow_length=0.1)
-# plt.show()
 
 
 T_cb = np.array([

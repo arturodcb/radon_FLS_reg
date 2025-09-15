@@ -2,25 +2,17 @@ import numpy as np
 import cv2
 import os
 import matplotlib.pyplot as plt
-import pywt
-from skimage.restoration import denoise_wavelet, estimate_sigma
-from skimage.filters import unsharp_mask
-from skimage.registration import phase_cross_correlation
+
 from pathlib import Path
 import time
 
-from utils import convert_se3_estimate_to_planar_estimates
-from image_reg import ICPRegistration, FourierRegistration, DirectRegistration, RadonRegistration, RANSACRegistration, TEASERRegistration
+
+from image_reg import ICPRegistration, FourierRegistration, DirectRegistration, RadonRegistration
 
 import ciso8601
-import copy
 
-from uvnav_py.lib import FLS
-
-from utils import to_cartesian, load_gt
-from uvnav_py.utils import state_interp
-
-from utils import create_fan_mask, plot_polar
+import FLS
+from utils import plot_polar, to_cartesian, load_gt, convert_se3_estimate_to_planar_estimates, state_interp
 
 
 # def plot_tags_polar(data: np.ndarray, fov_degrees: float, min_range: float, max_range: float, detected_tags, title: str='') -> None:
@@ -67,14 +59,6 @@ gt_path = Path(gt)
 # Load states
 gt_states = load_gt(gt_path)
 
-from uvnav_py.plotter import plot_poses
-import matplotlib.pyplot as plt
-
-
-
-fig, ax = plot_poses(gt_states, step = 100) # gt poses look good
-plt.show()
-
 
 prev_image = None
 prev_image_polar = None
@@ -97,12 +81,10 @@ icp_reg = ICPRegistration(r_max = 3, r_min = 0, azimuth_fov = 130, elevation_fov
 fourier_reg = FourierRegistration(r_max = 3, r_min = 0, azimuth_fov = 130, elevation_fov = 20)
 dir_reg = DirectRegistration(r_max = 3, r_min = 0, azimuth_fov = 130, elevation_fov = 20)
 rad_reg = RadonRegistration(r_max = 3, r_min = 0, azimuth_fov = 130, elevation_fov = 20)
-ransac_reg = RANSACRegistration(r_max = 3, r_min = 0, azimuth_fov = 130, elevation_fov = 20)
-teaser_reg = TEASERRegistration(r_max=3, r_min=0, azimuth_fov=130, elevation_fov=20, real_data=False)
 # pcd = o3d.t.geometry.PointCloud(o3c.Device("cuda:0"))
 
 from pymlg.numpy import SE3, SO3, SE2, SO2
-from uvnav_py.states import SE3State
+from states import SE3State
 
 ext_rot = SO3.Exp(np.array([np.pi, 0, 0], dtype=np.float32))  # 10 degrees rotation around y-axis
 ext_trans = np.array([0.3, 0, 0.3], dtype=np.float32)  # Translation in x and z axes
@@ -151,14 +133,6 @@ for polar_file in sorted(data_path.iterdir(), key=lambda x: x.name):
             print(f"Skipping image {polar_file.name} due to it being all zeros.")
             continue
         
-
-        cv2.imshow("Image", image)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-
-        user_in = input("Press Enter to continue, 's' to save: ")
-        if user_in == 's':
-            plot_polar(np.fliplr(np.flipud(polar_img)), azimuth_fov, r_min, r_max, None, title=Path(polar_file).name)
 
         # fan_mask = create_fan_mask(image.shape, 25)
         # # rad = cv2.cvtColor(radon(image), cv2.COLOR_GRAY2BGR)
@@ -239,104 +213,86 @@ for polar_file in sorted(data_path.iterdir(), key=lambda x: x.name):
             # SonarImageRegistration.visualize_registration(prev_image.copy(), image.copy(), noisy_angle_n, gamma * noisy_shift_n, "Initial Guess")
 
             ## ICP REGISTRATION
-            # try:
-            #     time_start = time.time()
-            #     pose = icp_reg.register_images(prev_image, image, prev_image_polar, polar_img, None)
-            #     time_end = time.time()
-            #     print(f"ICP Registration took {time_end - time_start:.2f} seconds")
-            #     ang, shift = convert_se3_estimate_to_planar_estimates(pose)
-            #     # ICPRegistration.visualize_registration(prev_image, image, ang, gamma*shift, "ICP Registration Result")
-            #     print(f"[ICP] Pose vector: {SE3.Log(pose).ravel()}")
-            #     # icp_se2.append(np.array([ang, shift[0], shift[1]], dtype=np.float32))
-            #     icp_se3.append(np.block([[SO3.Log(pose[:3, :3]).ravel()], [pose[:3, 3]]]).ravel())
-            # except Exception as e:
-            #     print(f"ICP Registration failed for {polar_file.name}: {e}")
-            #     icp_se3.append(np.array([np.nan, np.nan, np.nan, np.nan, np.nan, np.nan], dtype=np.float32))
-            # # ### FOURIER REGISTRATION
-            # try:
-            #     time_start = time.time()
-            #     pose = fourier_reg.register_images(prev_image, image, prev_image_polar, polar_img, None)
-            #     time_end = time.time()
-            #     print(f"Fourier Registration took {time_end - time_start:.2f} seconds")
-            #     ang = np.rad2deg(SO2.Log(pose[:2, :2]))
-            #     shift = np.array([pose[0, 2], pose[1, 2]], dtype=np.float32)
-            #     # ang, shift = convert_se3_estimate_to_planar_estimates(pose)
-            #     # FourierRegistration.visualize_registration(prev_image, image, ang, shift, "Fourier Registration Result")
-            #     # fou_se2.append(np.array([ang, shift[0], shift[1]], dtype=np.float32))
+            try:
+                time_start = time.time()
+                pose = icp_reg.register_images(prev_image, image, prev_image_polar, polar_img, None)
+                time_end = time.time()
+                print(f"ICP Registration took {time_end - time_start:.2f} seconds")
+                ang, shift = convert_se3_estimate_to_planar_estimates(pose)
+                # ICPRegistration.visualize_registration(prev_image, image, ang, gamma*shift, "ICP Registration Result")
+                print(f"[ICP] Pose vector: {SE3.Log(pose).ravel()}")
+                # icp_se2.append(np.array([ang, shift[0], shift[1]], dtype=np.float32))
+                icp_se3.append(np.block([[SO3.Log(pose[:3, :3]).ravel()], [pose[:3, 3]]]).ravel())
+            except Exception as e:
+                print(f"ICP Registration failed for {polar_file.name}: {e}")
+                icp_se3.append(np.array([np.nan, np.nan, np.nan, np.nan, np.nan, np.nan], dtype=np.float32))
+            # ### FOURIER REGISTRATION
+            try:
+                time_start = time.time()
+                pose = fourier_reg.register_images(prev_image, image, prev_image_polar, polar_img, None)
+                time_end = time.time()
+                print(f"Fourier Registration took {time_end - time_start:.2f} seconds")
+                ang = np.rad2deg(SO2.Log(pose[:2, :2]))
+                shift = np.array([pose[0, 2], pose[1, 2]], dtype=np.float32)
+                # ang, shift = convert_se3_estimate_to_planar_estimates(pose)
+                # FourierRegistration.visualize_registration(prev_image, image, ang, shift, "Fourier Registration Result")
+                # fou_se2.append(np.array([ang, shift[0], shift[1]], dtype=np.float32))
                 
 
-            #     fou_se3.append(np.array([0, 0, SO2.Log(pose[:2, :2]), shift[0], shift[1], 0], dtype=np.float32))
-            # except Exception as e:
-            #     print(f"Fourier Registration failed for {polar_file.name}: {e}")
-            # #     # fou_se2.append(np.array([np.nan, np.nan, np.nan], dtype=np.float32))
-            #     fou_se3.append(np.array([np.nan, np.nan, np.nan, np.nan, np.nan, np.nan], dtype=np.float32))
+                fou_se3.append(np.array([0, 0, SO2.Log(pose[:2, :2]), shift[0], shift[1], 0], dtype=np.float32))
+            except Exception as e:
+                print(f"Fourier Registration failed for {polar_file.name}: {e}")
+            #     # fou_se2.append(np.array([np.nan, np.nan, np.nan], dtype=np.float32))
+                fou_se3.append(np.array([np.nan, np.nan, np.nan, np.nan, np.nan, np.nan], dtype=np.float32))
 
-            # # ### DIRECT REGISTRATION
-            # try:
-            #     time_start = time.time()
-            #     pose = dir_reg.register_images(prev_image, image, None, None,  None )
-            #     time_end = time.time()
-            #     print(f"Direct Registration took {time_end - time_start:.2f} seconds")
+            # ### DIRECT REGISTRATION
+            try:
+                time_start = time.time()
+                pose = dir_reg.register_images(prev_image, image, None, None,  None )
+                time_end = time.time()
+                print(f"Direct Registration took {time_end - time_start:.2f} seconds")
 
-            #     ang = np.rad2deg(SO2.Log(pose[:2, :2]))
-            #     shift = np.array([pose[0, 2], pose[1, 2]], dtype=np.float32)
-            #     # print(ang, shift)
-            #     # print(f"[DIRECT] Pose vector: {SE3.Log(pose).ravel()}")
-            #     # dir_se2.append(np.array([ang, shift[0], shift[1]], dtype=np.float32))
-            #     # ang, shift = convert_se3_estimate_to_planar_estimates(pose)
-            #     # dir_se3.append(
+                ang = np.rad2deg(SO2.Log(pose[:2, :2]))
+                shift = np.array([pose[0, 2], pose[1, 2]], dtype=np.float32)
+                # print(ang, shift)
+                # print(f"[DIRECT] Pose vector: {SE3.Log(pose).ravel()}")
+                # dir_se2.append(np.array([ang, shift[0], shift[1]], dtype=np.float32))
+                # ang, shift = convert_se3_estimate_to_planar_estimates(pose)
+                # dir_se3.append(
                     
-            #     # )
-            #     # dir_se3.append(np.block([[SO3.Log(pose[:3, :3]).ravel()], [pose[:3, 3]]]).ravel())
-            #     dir_se3.append(np.array([0, 0, SO2.Log(pose[:2, :2]), shift[0], shift[1], 0], dtype=np.float32))
-            #     # DirectRegistration.visualize_registration(prev_image.copy(), image.copy(), ang, gamma * shift, "Direct Registration Result")
-            # except Exception as e:
-            #     print(f"Direct Registration failed for {polar_file.name}: {e}")
-            #     dir_se3.append(np.array([np.nan, np.nan, np.nan, np.nan, np.nan, np.nan], dtype=np.float32))
+                # )
+                # dir_se3.append(np.block([[SO3.Log(pose[:3, :3]).ravel()], [pose[:3, 3]]]).ravel())
+                dir_se3.append(np.array([0, 0, SO2.Log(pose[:2, :2]), shift[0], shift[1], 0], dtype=np.float32))
+                # DirectRegistration.visualize_registration(prev_image.copy(), image.copy(), ang, gamma * shift, "Direct Registration Result")
+            except Exception as e:
+                print(f"Direct Registration failed for {polar_file.name}: {e}")
+                dir_se3.append(np.array([np.nan, np.nan, np.nan, np.nan, np.nan, np.nan], dtype=np.float32))
 
 
-            # # ### RADON REGISTRATION
-            # try:
-            #     time_start = time.time()
-            #     pose = rad_reg.register_images(prev_image, image, None, None,  None )
-            #     time_end = time.time()
-            #     print(f"Radon Registration took {time_end - time_start:.2f} seconds")
+            # ### RADON REGISTRATION
+            try:
+                time_start = time.time()
+                pose = rad_reg.register_images(prev_image, image, None, None,  None )
+                time_end = time.time()
+                print(f"Radon Registration took {time_end - time_start:.2f} seconds")
 
-            #     ang = np.rad2deg(SO2.Log(pose[:2, :2]))
-            #     shift = np.array([pose[0, 2], pose[1, 2]], dtype=np.float32)
-            #     # print(ang, shift)
-            #     # print(f"[DIRECT] Pose vector: {SE3.Log(pose).ravel()}")
-            #     # dir_se2.append(np.array([ang, shift[0], shift[1]], dtype=np.float32))
-            #     # ang, shift = convert_se3_estimate_to_planar_estimates(pose)
-            #     # dir_se3.append(
+                ang = np.rad2deg(SO2.Log(pose[:2, :2]))
+                shift = np.array([pose[0, 2], pose[1, 2]], dtype=np.float32)
+                # print(ang, shift)
+                # print(f"[DIRECT] Pose vector: {SE3.Log(pose).ravel()}")
+                # dir_se2.append(np.array([ang, shift[0], shift[1]], dtype=np.float32))
+                # ang, shift = convert_se3_estimate_to_planar_estimates(pose)
+                # dir_se3.append(
                     
-            #     # )
-            #     # dir_se3.append(np.block([[SO3.Log(pose[:3, :3]).ravel()], [pose[:3, 3]]]).ravel())
-            #     rad_se3.append(np.array([0, 0, SO2.Log(pose[:2, :2]), shift[0], shift[1], 0], dtype=np.float32))
-            #     # RadonRegistration.visualize_registration(prev_image.copy(), image.copy(), ang, shift, "Radon Registration Result")
-            # except Exception as e:
-            #     print(f"Radon Registration failed for {polar_file.name}: {e}")
-            #     rad_se3.append(np.array([np.nan, np.nan, np.nan, np.nan, np.nan, np.nan], dtype=np.float32))
+                # )
+                # dir_se3.append(np.block([[SO3.Log(pose[:3, :3]).ravel()], [pose[:3, 3]]]).ravel())
+                rad_se3.append(np.array([0, 0, SO2.Log(pose[:2, :2]), shift[0], shift[1], 0], dtype=np.float32))
+                # RadonRegistration.visualize_registration(prev_image.copy(), image.copy(), ang, shift, "Radon Registration Result")
+            except Exception as e:
+                print(f"Radon Registration failed for {polar_file.name}: {e}")
+                rad_se3.append(np.array([np.nan, np.nan, np.nan, np.nan, np.nan, np.nan], dtype=np.float32))
 
 
-            # # ### TEASER REGISTRATION
-            # try:
-            #     t_start = time.time()
-            #     pose = teaser_reg.register_images(
-            #         prev_image, image, prev_image_polar, polar_img, None
-            #     )
-            #     ang, shift = convert_se3_estimate_to_planar_estimates(pose)
-
-            #     # TEASERRegistration.visualize_registration(prev_image, image, ang, gamma*shift, "TEASER Registration Result")
-
-            #     # rel_posesRad.append(po
-            #     teas_se3.append(np.block([[SO3.Log(pose[:3, :3]).ravel()], [pose[:3, 3]]]).ravel())
-            # except Exception as e:
-            #     print(f"ICP Registration failed for {polar_file.name}: {e}")
-            #     teas_se3.append(np.array([np.nan, np.nan, np.nan, np.nan, np.nan, np.nan], dtype=np.float32))
-            # print(f"[DIRECT] Error (degrees): {np.abs(ang_gt - ang)}")
-            # print(f"[DIRECT] Error (m): {np.linalg.norm(shift_gt - shift)}")
-            # print(f"[DIRECT] Error (pixels): {np.linalg.norm(shift_gt - shift) * gamma}")
 
             
             # print("Ground truth relative pose (planar):", gt_rel_pose_planar)

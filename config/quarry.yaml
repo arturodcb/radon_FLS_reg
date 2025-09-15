@@ -1,0 +1,192 @@
+data_path: "/media/arturo/Voyis/Quarry0211/"
+output_path: "/home/arturo/data/Quarry0211/"
+
+discovery_base:
+  time_zone: "UTC"
+
+blueprint_base:
+  time_zone: "UTC"
+  discovery_tz: "UTC"
+  camera_match_time: "20250211T171207.772537"
+  sonar_match_time: "20240608T184002.896000"
+
+
+sprintnav_base:
+  reference_system_time: 0.0  # [minutes]
+  time_str: "20250211T155535.000000"
+  time_zone: "UTC"
+  beam1_elevation: -60 # [deg]
+  beam1_azimuth: 315 # [deg]
+  beam1_lever_arm: [0.0326, -0.0326, 0] # [m]
+  beam2_elevation: -60 # [deg]
+  beam2_azimuth: 225 # [deg]
+  beam2_lever_arm: [-0.0326, -0.0326, 0] # [m]
+  beam3_elevation: -60 # [deg]
+  beam3_azimuth: 135 # [deg]
+  beam3_lever_arm: [-0.0326, 0.0326, 0] # [m]
+  beam4_elevation: -60 # [deg]
+  beam4_azimuth: 45 # [deg]
+  beam4_lever_arm: [0.0326, 0.0326, 0] # [m]
+
+sprintnavmini:
+  imu_params:
+    hardware: "sprintnav_mini-imu"
+    path: "Janus/sensor/compensated"
+    extension: ".mat"
+    filename: "imu"
+    frequency: 200
+    output_filename: "SprintNav_mini-IMU.csv"
+  dvl_params:
+    hardware: "sprintnav_mini-dvl"
+    path: "Janus/sensor/compensated"
+    extension: ".mat"
+    filename: "dvl"
+    frequency: 10
+    output_filename: "SprintNav_mini-DVL.csv"
+  depth_params:
+    hardware: "sprintnav_mini-depth"
+    path: "Janus/sensor/compensated"
+    extension: ".asc"
+    filename: "pdepth"
+    frequency: 5
+    output_filename: "SprintNav_mini-Depth.csv"
+
+truck_lm:
+  rosbag_filename: "truck_lm.bag"
+  imu_params:
+    hardware: "discovery-imu"
+    path: "truck_lm/Voyis/IMU_Data"
+    extension: ".csv"
+    filename: ""
+    frequency: 100
+    output_filename: "Discovery_stereo-IMU.csv"
+  image_params:
+    hardware: "discovery-stereo"
+    path: "truck_lm/Voyis/Stills_180114012"
+    extension: ".jpg"
+    filename: "processed_SYSTEM_"
+    frequency: 3
+    output_filename: "Discovery_stereo-Camera.csv"
+  dvl_params:
+    hardware: "waterlinked_a50-velocity"
+    path: "truck_lm"
+    extension: ".log"
+    filename: "dvl"
+    frequency: 4
+    output_filename: "Waterlinked_DVL-Velocity.csv"
+  sonar_params:
+    hardware: "blueprint_oculus"
+    path: "truck_lm/sonar/"
+    images_path: "polar_images/"
+    extension: ".oculus"
+    filename: "sonar_truck_lm_legacy"
+    image_filename: "sonar_image_"
+    frequency: 15
+    rov_data: true
+    is_flipped: true
+    output_filename: "sonar.csv"
+
+truck:
+  rosbag_filename: "truck.bag"
+  imu_params:
+    hardware: "discovery-imu"
+    path: "truck/Voyis/IMU_Data"
+    extension: ".csv"
+    filename: ""
+    frequency: 100
+    output_filename: "Discovery_stereo-IMU.csv"
+  image_params:
+    hardware: "discovery-stereo"
+    path: "truck/Voyis/Stills_180114012"
+    extension: ".jpg"
+    filename: "processed_SYSTEM_"
+    frequency: 3
+    output_filename: "Discovery_stereo-Camera.csv"
+  dvl_params:
+    hardware: "waterlinked_a50-velocity"
+    path: "truck"
+    extension: ".log"
+    filename: "dvl"
+    frequency: 4
+    output_filename: "Waterlinked_DVL-Velocity.csv"
+  sonar_params:
+    hardware: "blueprint_oculus"
+    path: "truck/sonar/"
+    images_path: "polar_images/"
+    extension: ".oculus"
+    filename: "sonar_truck_legacy"
+    image_filename: "sonar_image_"
+    frequency: 15
+    rov_data: true
+    is_flipped: true
+    output_filename: "sonar.csv"
+
+conveyor_lm:
+  rosbag_filename: "conveyor_lm.bag"
+  imu_params:
+    hardware: "discovery-imu"
+    path: "conveyor_lm/Voyis/IMU_Data"
+    extension: ".csv"
+    filename: ""
+    frequency: 100
+    output_filename: "Discovery_stereo-IMU.csv"
+  image_params:
+    hardware: "discovery-stereo"
+    path: "conveyor_lm/Voyis/Stills_180114012"
+    extension: ".jpg"
+    filename: "processed_SYSTEM_"
+    frequency: 3
+    output_filename: "Discovery_stereo-Camera.csv"
+  dvl_params:
+    hardware: "waterlinked_a50-velocity"
+    path: "conveyor_lm"
+    extension: ".log"
+    filename: "dvl"
+    frequency: 4
+    output_filename: "Waterlinked_DVL-Velocity.csv"
+  sonar_params:
+    hardware: "blueprint_oculus"
+    path: "conveyor_lm/sonar/"
+    images_path: "polar_images/"
+    extension: ".oculus"
+    filename: "sonar_conveyor_lm_legacy"
+    image_filename: "sonar_image_"
+    frequency: 15
+    rov_data: true
+    is_flipped: true
+    output_filename: "sonar.csv"
+
+belt:
+  rosbag_filename: "belt.bag"
+  imu_params:
+    hardware: "discovery-imu"
+    path: "belt/Voyis/IMU_Data"
+    extension: ".csv"
+    filename: ""
+    frequency: 100
+    output_filename: "Discovery_stereo-IMU.csv"
+  image_params:
+    hardware: "discovery-stereo"
+    path: "belt/Voyis/Stills_180114012"
+    extension: ".jpg"
+    filename: "processed_SYSTEM_"
+    frequency: 3
+    output_filename: "Discovery_stereo-Camera.csv"
+  dvl_params:
+    hardware: "waterlinked_a50-velocity"
+    path: "belt"
+    extension: ".log"
+    filename: "dvl"
+    frequency: 4
+    output_filename: "Waterlinked_DVL-Velocity.csv"
+  sonar_params:
+    hardware: "blueprint_oculus"
+    path: "belt/sonar/"
+    images_path: "polar_images/"
+    extension: ".oculus"
+    filename: "sonar_belt_legacy"
+    image_filename: "sonar_image_"
+    frequency: 15
+    rov_data: true
+    is_flipped: true
+    output_filename: "sonar.csv"
