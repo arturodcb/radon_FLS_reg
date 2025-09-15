@@ -6,4 +6,7 @@ Radon Transform-Based Forward-Looking Sonar Image Registration
 submitted for review to IEEE ICRA 2026
 
 
-Depends on uvnav_py, need to add requirement or remove it
+Dependencies
+
+open3d
+gtsam with python wrapper
